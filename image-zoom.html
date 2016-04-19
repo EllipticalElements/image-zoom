@@ -1,0 +1,423 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../jquery-ui-import/interactions.html">
+<link rel="import" href="../elliptical-polymer-behaviors/component-behavior.html">
+<link rel="import" href="../sass-zoom-icons/sass-zoom-icons.html">
+<style>
+    [zoom-container]{
+        overflow:hidden;
+    }
+    [zoom-image]{
+        -webkit-transition: -webkit-transform 0.5s ease-in-out;
+        transition: transform 0.5s ease-in-out;
+        display:block;
+    }
+    [zoom-image].scale-2{
+        -webkit-transform: scale(2);
+        transform: scale(2);
+        cursor: move;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+        cursor: grab;
+    }
+    [zoom-image].scale-3{
+        -webkit-transform: scale(3);
+        transform: scale(3);
+        cursor: move;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+        cursor: grab;
+    }
+    [zoom-image].scale-4{
+        -webkit-transform: scale(4);
+        transform: scale(4);
+        cursor: move;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+        cursor: grab;
+    }
+    [zoom-image].scale-5{
+        -webkit-transform: scale(5);
+        transform: scale(5);
+        cursor: move;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+        cursor: grab;
+    }
+    [zoom-image].scale-6{
+        -webkit-transform: scale(6);
+        transform: scale(6);
+        cursor: move;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+        cursor: grab;
+    }
+    [zoom-image].auto{
+        height:auto;
+    }
+</style>
+<dom-module id="image-zoom">
+    <style>
+        :host{
+            margin:1em 0;
+            display:-webkit-flex;
+            display:flex;
+            -webkit-justify-content:center;
+            justify-content:center;
+            -webkit-align-items:center;
+            align-items:center;
+            width:100%;
+        }
+        :host>span{
+            cursor:pointer;
+        }
+        :host>span:before{
+            font-size:24px;
+        }
+        :host>*{
+            margin-left: 1em;
+            color: #c1c3c7;
+            -webkit-transition:all 0.25s linear;
+            transition:all 0.25s linear;
+        }
+        :host>*:hover{
+            color: #405770;
+            cursor: pointer;
+        }
+        :host>*.active{
+            color: #405770;
+        }
+        :host>*.active.max{
+            opacity:.7;
+        }
+        :host>*.active.max:hover{
+            cursor:default;
+        }
+        :host>*.inactive{
+            color:#dcdddf;
+        }
+        :host>*.inactive:hover{
+            cursor:default;
+        }
+        :host[disable]>*{
+            color:#dcdddf;
+            cursor:default;
+        }
+        :host[disable]>*:hover{
+            color:#dcdddf;
+            cursor:default;
+        }
+    </style>
+    <template>
+        <span class="icon-zoom-in" id="icon-zoom-in"></span>
+        <span class="icon-zoom-out" id="icon-zoom-out"></span>
+        <span class="icon-zoom-refresh" id="icon-zoom-refresh"></span>
+    </template>
+</dom-module>
+<script>
+    Polymer({
+        is: 'image-zoom',
+        behaviors:[Elliptical.ComponentBehavior],
+        properties:{
+            maxMagnification:{
+                type:Number,
+                value:5
+            },
+            maxWidth:{
+                type:Number,
+                value:423
+            },
+            disable:{
+                type:Boolean,
+                value:false
+            },
+            _magnification:{
+                type:Number,
+                value:1
+            },
+            _draggable:{
+                type:Boolean,
+                value:false
+            },
+            _rectangle:{
+                type:Object,
+                value:null
+            }
+
+        },
+
+        listeners:{
+            'icon-zoom-in.tap': '_onZoomIn',
+            'icon-zoom-out.tap': '_onZoomOut',
+            'icon-zoom-refresh.tap':'_onReset'
+        },
+
+        ready:function(){
+            var rectangle={
+                x1: null,
+                y1: null,
+                x2: null,
+                y2: null
+            };
+            this._rectangle=rectangle;
+            this._setWidth();
+            var self=this;
+            setTimeout(function(){
+                self._initBoundingRectangle();
+            },1500);
+        },
+        
+        _setWidth:function(){
+             var container=this._zoomContainer();
+             var width=container.width();
+             this.maxWidth=width;
+        },
+
+        _zoomImage:function(){
+            var zoomImage=$('[zoom-image]');
+            if(!zoomImage[0]) console.warn('warning: zoom-image attribute not defined');
+            return zoomImage;
+        },
+
+        _zoomContainer:function(){
+            var zoomContainer=$('[zoom-container]');
+            if(!zoomContainer[0]) console.warn('warning: zoom-container attribute not defined');
+            return zoomContainer;
+        },
+
+        _onReset:function(){
+            this._reset();
+            this._magnification = 1;
+            var zoom=this._zoom();
+            if (zoom.draggable) {
+                this._killDraggable();
+            }
+        },
+
+        _onZoomIn:function(){
+            this._zoomIn();
+        },
+
+        _onZoomOut:function(){
+            //this._zoomOut();
+            this._reset();
+            this._magnification=1;
+        },
+
+        _initBoundingRectangle:function(){
+            var WIDTH=this.maxWidth;
+            var zoomContainer=this._zoomContainer();
+            var offset = zoomContainer.offset();
+            var rectangle=this._rectangle;
+            rectangle.x1 = offset.left;
+            rectangle.x2 = rectangle.x1 + WIDTH;
+            rectangle.y1 = offset.top;
+            rectangle.y2 = rectangle.y1 + WIDTH;
+        },
+
+        _reset:function(){
+            var zoomImage=this._zoomImage();
+            var zoom=this._zoom();
+            this._originalPos();
+            zoomImage.attr('class', '');
+            var zoomOutControl = zoom.out;
+            zoomOutControl.addClass('inactive');
+            var zoomInControl = zoom.in;
+            zoomInControl.removeClass('active');
+            zoomInControl.removeClass('max');
+        },
+
+        _originalPos:function(){
+            var rectangle=this._rectangle;
+            //this._magnification=1;
+            var zoomImage=this._zoomImage();
+            zoomImage.attr('style','');
+        },
+
+        _centerPosition:function(){
+            var WIDTH=this.maxWidth;
+            var rectangle=this._rectangle;
+            var currentWidth = (this._magnification) * WIDTH;
+            var zoom=this._zoom();
+
+            var x1 = rectangle.x1;
+            var x2 = rectangle.x2;
+            var y1 = rectangle.y1;
+            var y2 = rectangle.y2;
+            var X = x1 + (-.5) * (currentWidth - WIDTH);
+            var Y = y1 + (-.5) * (currentWidth - WIDTH);
+
+            zoom.offset = { left: X, top: Y };
+        },
+
+        _checkBounding:function(){
+            var magnification=this._magnification;
+            var zoom=this._zoom();
+            var rectangle=this._rectangle;;
+            var WIDTH=this.maxWidth;
+            var SEMI_WIDTH = WIDTH / 2;
+            var offset = zoom.offset;
+            var left = offset.left;
+            var top = offset.top;
+            var currentWidth=(this._magnification) * WIDTH;
+            var x1 = rectangle.x1;
+            var x2 = rectangle.x2;
+            var y1 = rectangle.y1;
+            var y2 = rectangle.y2;
+            var newOffset = {};
+            if ((left) > (x1 - SEMI_WIDTH)) {
+                newOffset.left = (x1 - SEMI_WIDTH);
+                newOffset.top = top;
+            }
+            if ((left + currentWidth) < (x2 + SEMI_WIDTH)) {
+                newOffset.left = (x1 - SEMI_WIDTH);
+                newOffset.top = top;
+            }
+            if ((top) > (y1 - SEMI_WIDTH)) {
+                newOffset.left = (newOffset.left !== undefined) ? newOffset.left : left;
+            }
+            if ((top + currentWidth) < (y2 + SEMI_WIDTH)) {
+                newOffset.top = y1 - SEMI_WIDTH;
+                newOffset.left = (newOffset.left !== undefined) ? newOffset.left : left;
+            }
+            zoom.offset = newOffset;
+        },
+
+        _setDraggable:function(){
+            var zoomImage=this._zoomImage();
+            var zoom=this._zoom();
+            if (zoom.draggable) {
+                this._killDraggable();
+            }
+            zoom.magnification = this._magnification;
+            zoomImage.draggable({ containment: zoom.containment });
+            zoom.draggable = true;
+        },
+
+        _killDraggable:function(){
+            var zoom=this._zoom();
+            var zoomImage=this._zoomImage();
+            zoomImage.draggable('destroy');
+            zoom.draggable = false;
+        },
+
+        _scaleUp:function(){
+            var zoomImage=this._zoomImage();
+            zoomImage.addClass('scale-' + this._magnification);
+        },
+
+        _scaleDown:function(){
+            var zoomImage=this._zoomImage();
+            this._checkBounding();
+            zoomImage.removeClass('scale-' +this._magnification);
+        },
+
+        _zoomIn:function(target){
+            var zoom=this._zoom();
+            var $target=$(target);
+            var MAX_MAGNIFICATION=this.maxMagnification;
+
+            if (this._magnification < MAX_MAGNIFICATION) {
+                this._magnification++;
+                this._setDraggable();
+                this._scaleUp();
+                $target.addClass('active');
+                var zoomOutControl = zoom.out;
+                zoomOutControl.removeClass('inactive');
+                if (this._magnification === MAX_MAGNIFICATION) {
+                    $target.addClass('max');
+                }
+            }
+        },
+
+        _zoomOut:function(target){
+            var zoom=this._zoom();
+            var $target=$(target);
+            if (this._magnification > 1) {
+                this._scaleDown();
+                this._magnification--;
+                this._setDraggable();
+                var zoomInControl = zoom.in;
+                zoomInControl.removeClass('max');
+                if (this._magnification === 1) {
+                    zoomInControl.removeClass('active');
+                    $target.addClass('inactive');
+                    this._killDraggable();
+                }
+            }
+        },
+
+        _zoom:function(){
+            var zoomImage=this._zoomImage();
+            var zoomIn=$(this.$.iconZoomIn);
+            var zoomOut=$(this.$.iconZoomOut);
+            var rectangle=this._rectangle;
+            var WIDTH=this.maxWidth;
+            var self=this;
+            return{
+
+                get in() {
+                    return zoomIn;
+                },
+
+                get out() {
+                    return zoomOut;
+                },
+
+                get draggable() {
+                    return self._draggable;
+                },
+
+                set draggable(val) {
+                    self._draggable = val;
+                },
+
+                set magnification(val){
+                    self._magnification = val;
+                },
+
+                get containment() {
+                    var m=self._magnification;
+                    var zoomImage=self._zoomImage();
+                    var width=zoomImage.width();
+                    var height=zoomImage.height();
+                    var x2=rectangle.x1 + (m-1)*width;
+                    var x1=rectangle.x2 - (m-1)*width;
+                    var y1=rectangle.y2 - (m-1)*height;
+                    var y2=rectangle.y1 + (m-1)*height;
+                    
+                    return [x1, y1, x2, y2];
+                },
+
+                get offset() {
+                    return zoomImage.offset();
+                },
+
+                set offset(val) {
+                    if (val.left !== undefined) {
+                        zoomImage.offset(val);
+                    }
+                }
+            };
+        },
+
+        detached:function(){
+
+        },
+
+        disable:function(){
+            this.disable=true;
+        },
+
+        enable:function(){
+            this.disable=false;
+        },
+        
+        reset:function(){
+            this._onReset();
+           
+        }
+        
+      
+    });
+
+</script>
